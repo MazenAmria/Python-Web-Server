@@ -1,0 +1,26 @@
+[
+  {
+    "img": "assets/Scheduling.png",
+    "url": "https://github.com/MazenAmria/CPU-Scheduler",
+    "title": "CPU Scheduler",
+    "text": "a simple simulation for some CPU scheduling algorithms."
+  },
+  {
+    "img": "assets/Server-Monitor.jpg",
+    "url": "https://github.com/MazenAmria/Server-Monitoring-API",
+    "title": "Server Monitoring API",
+    "text": "a simple API built with Flask and containerized with Docker. The image monitors the host server that it runs on."
+  },
+  {
+    "img": "assets/DFT.jpg",
+    "url": "https://github.com/MazenAmria/dft",
+    "title": "DFT Calculator",
+    "text": "a simple program to calculate and plot the Discrete Fourier Transform and its Inverse, Fast Fourier Transform is implemented also."
+  },
+  {
+    "img": "assets/Perceptron.jpg",
+    "url": "https://gitlab.com/MazenAmria/Perceptron-Training-MIPS",
+    "title": "Perceptron Training",
+    "text": "single layer neural network training algorithm implemented with MIPS assembly language."
+  }
+]
