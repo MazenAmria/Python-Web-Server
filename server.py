@@ -1,11 +1,12 @@
 #!/usr/bin/python
 
 from socket import *
+import pandas
 import re
 import time
 import logging
 
-FORMAT = '%(asctime)-15s\t[%(levelname)s]:\t* %(message)s'
+FORMAT = '%(asctime)-15s\t[%(levelname)s]: * %(message)s'
 logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 
 
@@ -19,10 +20,27 @@ def recv_request(csock):
     return req
 
 
+def smartphones_handler(conn, addr, path):
+    """A handler for '/SortName' and '/SortPrice'
+    """
+    try:
+        smartphones = pandas.read_csv('smartphones.csv')
+        col = path[len("/Sort"):]
+        res = smartphones.sort_values(col)
+        conn.send(b'HTTP/1.1 200 OK\r\n')
+        conn.send(b'Content-Type: application/json\r\n')
+        conn.send(b'\r\n')
+        conn.send(res.to_json(orient='records').encode('utf-8'))
+        return True
+    except Exception as e:
+        logging.error("%s: %s", __name__, e)
+        return False
+
+
 def absolute_handler(conn, addr, path):
     """A handler for '/' returns index.html.
     """
-    if path == '/':
+    try:
         file = open('index.html', 'rb')
         conn.send(b'HTTP/1.1 200 OK\r\n')
         conn.send(b'Content-Type: text/html\r\n')
@@ -30,7 +48,9 @@ def absolute_handler(conn, addr, path):
         res = file.read()
         conn.send(res)
         return True
-    return False
+    except Exception as e:
+        logging.error("%s: %s", __name__, e)
+        return False
 
 
 def default_handler(conn, addr, path):
@@ -74,7 +94,8 @@ def default_handler(conn, addr, path):
 
 # define list of handlers
 handlers = [
-    (r'/', absolute_handler)
+    (re.compile(r'^/$'), absolute_handler),
+    (re.compile(r'^/Sort'), smartphones_handler)
 ]
 
 # IPv4
@@ -102,21 +123,20 @@ while True:
     # Read the request
     req = recv_request(client_socket)
 
-    try:
-        # Extract the path of the request
-        path = req[0][1]
+    # Extract the path of the request
+    path = req[0][1]
 
-        logging.info('GET %s from %s', path, client_address)
+    logging.info('GET %s from %s', path, client_address)
 
-        handled = False
-        for handler in handlers:
-            if re.match(handler[0], path):
-                handled = handler[1](client_socket, client_address, path)
-                if handled:
-                    break
+    handled = False
+    for handler in handlers:
+        if handler[0].match(path):
+            handled = handler[1](client_socket, client_address, path)
+            if handled:
+                break
 
-        if not handled:
-            default_handler(client_socket, client_address, path)
-    finally:
-        # Close the connection
-        client_socket.close()
+    if not handled:
+        default_handler(client_socket, client_address, path)
+
+    # Close the connection
+    client_socket.close()
