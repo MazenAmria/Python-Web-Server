@@ -42,7 +42,8 @@ TYPES = {
     'js': 'application/javascript',
     'json': 'application/json',
     'png': 'image/png',
-    'jpg': 'image/jpg'
+    'jpg': 'image/jpg',
+    'ico': 'image/x-icon'
 }
 
 # Time-zone used by the server
