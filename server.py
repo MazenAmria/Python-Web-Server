@@ -70,6 +70,7 @@ def send_res(conn, status_code, headers, data):
     conn.send(
         f'{VERSION} {status_code} {STATUS[status_code]}\r\n'.encode('utf-8'))
 
+    logging.info('%s %s %s', VERSION, status_code, STATUS[status_code])
     # Send the headers
     for (key, value) in headers.items():
         conn.send(f'{key}: {value}\r\n'.encode('utf-8'))
@@ -192,7 +193,7 @@ def default_handler(conn, addr, method, path, version, req_headers):
         data = data.replace('{{ server-port }}', str(conn.getsockname()[1]))
 
         # Encode Data
-        data.encode('utf-8')
+        data = data.encode('utf-8')
 
         # Send the response
         send_res(conn, status_code, res_headers, data)
