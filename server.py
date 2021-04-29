@@ -14,20 +14,23 @@ def recv_request(csock):
     # recieve the request as string
     req = csock.recv(8192).decode('utf-8')
 
+    # print it to the terminal
+    print(req)
+
     # parse it
-    req = list(map(lambda x: x.split(), req.split('\n')))
+    req = req.split('\r\n')
 
     return req
 
 
-def smartphones_handler(conn, addr, path):
+def smartphones_handler(conn, addr, method, path, version, headers):
     """A handler for '/SortName' and '/SortPrice'
     """
     try:
         smartphones = pandas.read_csv('smartphones.csv')
         col = path[len("/Sort"):]
         res = smartphones.sort_values(col)
-        conn.send(b'HTTP/1.1 200 OK\r\n')
+        conn.send(f'{version} 200 OK\r\n'.encode('utf-8'))
         conn.send(b'Content-Type: application/json\r\n')
         conn.send(b'\r\n')
         conn.send(res.to_json(orient='records').encode('utf-8'))
@@ -37,12 +40,12 @@ def smartphones_handler(conn, addr, path):
         return False
 
 
-def absolute_handler(conn, addr, path):
+def absolute_handler(conn, addr, method, path, version, headers):
     """A handler for '/' returns index.html.
     """
     try:
         file = open('index.html', 'rb')
-        conn.send(b'HTTP/1.1 200 OK\r\n')
+        conn.send(f'{version} 200 OK\r\n'.encode('utf-8'))
         conn.send(b'Content-Type: text/html\r\n')
         conn.send(b'\r\n')
         res = file.read()
@@ -53,7 +56,7 @@ def absolute_handler(conn, addr, path):
         return False
 
 
-def default_handler(conn, addr, path):
+def default_handler(conn, addr, method, path, version, headers):
     """A default handler that returns a file 
     if it exists and return 404 page otherwise.
     """
@@ -72,14 +75,14 @@ def default_handler(conn, addr, path):
     # try to open the file
     try:
         file = open(path, 'rb')
-        conn.send(b'HTTP/1.1 200 OK\r\n')
+        conn.send(f'{version} 200 OK\r\n'.encode('utf-8'))
         conn.send(f'Content-Type: {types[extension]}\r\n'.encode('utf-8'))
         conn.send(b'\r\n')
         res = file.read()
         conn.send(res)
     except:
         file = open('notfound.html', 'r')
-        conn.send(b'HTTP/1.1 404 OK\r\n')
+        conn.send(f'{version} 404 OK\r\n'.encode('utf-8'))
         conn.send(b'Content-Type: text/html\r\n')
         conn.send(b'\r\n')
         res = file.read()
@@ -123,20 +126,30 @@ while True:
     # Read the request
     req = recv_request(client_socket)
 
-    # Extract the path of the request
-    path = req[0][1]
+    # Extract the method, path and HTTP version of the request
+    method, path, version = req[0].split()
 
-    logging.info('GET %s from %s', path, client_address)
+    # Extract the headers
+    headers = {}
+    for i in range(1, len(req)):
+        if req[i] == "":
+            break
+        key, value = req[i].split(': ', 1)
+        headers[key] = value
+
+    logging.info('%s %s from %s', method, path, client_address)
 
     handled = False
     for handler in handlers:
         if handler[0].match(path):
-            handled = handler[1](client_socket, client_address, path)
+            handled = handler[1](client_socket, client_address,
+                                 method, path, version, headers)
             if handled:
                 break
 
     if not handled:
-        default_handler(client_socket, client_address, path)
+        default_handler(client_socket, client_address,
+                        method, path, version, headers)
 
     # Close the connection
     client_socket.close()
