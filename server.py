@@ -33,7 +33,7 @@ STATUS = {
     404: 'Not Found'
 }
 
-# HTTP versio used by the server
+# HTTP version used by the server
 VERSION = 'HTTP/1.1'
 
 # Supported files by the server
