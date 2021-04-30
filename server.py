@@ -19,6 +19,7 @@ def recv_request(csock):
     req = csock.recv(8192).decode('utf-8')
 
     # print it to the terminal
+    print('\r\n\r\n')
     print(req)
 
     # parse it
@@ -38,12 +39,14 @@ VERSION = 'HTTP/1.1'
 
 # Supported files by the server
 TYPES = {
+    'txt': 'text/plain',
     'html': 'text/html',
     'js': 'application/javascript',
     'json': 'application/json',
     'png': 'image/png',
     'jpg': 'image/jpg',
-    'ico': 'image/x-icon'
+    'ico': 'image/x-icon',
+    'csv': 'text/csv'
 }
 
 # Time-zone used by the server
@@ -51,6 +54,9 @@ TIMEZONE = timezone('GMT')
 
 # Date foramt used by the server
 DATEFMT = '%a, %d %b %Y %H:%M:%S %Z'
+
+# Information about the Server Machine
+SERVER = ' '.join(os.uname())
 
 
 # Send HTTP response headers and data
@@ -64,7 +70,7 @@ def send_res(conn, status_code, headers, data):
     headers['Date'] = now
 
     # Set the Server header
-    headers['Server'] = ' '.join(os.uname())
+    headers['Server'] = SERVER
 
     # Send the response status
     conn.send(
