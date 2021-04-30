@@ -13,20 +13,15 @@ import logging
 FORMAT = '%(asctime)-15s\t[%(levelname)s]: * %(message)s'
 logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 
+# Server Interfaces and Port
+SRVHOST = "0.0.0.0"
+SRVPORT = 9000
 
-def recv_request(csock):
-    # recieve the request as string
-    req = csock.recv(8192).decode('utf-8')
+# Maximum requests in the queue
+QSIZ = 10
 
-    # print it to the terminal
-    print('\r\n\r\n')
-    print(req)
-
-    # parse it
-    req = req.split('\r\n')
-
-    return req
-
+# Maximum request length
+MAX_REQ = 8192
 
 # HTTP response status codes
 STATUS = {
@@ -38,16 +33,16 @@ STATUS = {
 VERSION = 'HTTP/1.1'
 
 # Supported files by the server
-TYPES = {
-    'txt': 'text/plain',
-    'html': 'text/html',
-    'js': 'application/javascript',
-    'json': 'application/json',
-    'png': 'image/png',
-    'jpg': 'image/jpg',
-    'ico': 'image/x-icon',
-    'csv': 'text/csv'
-}
+TYPES = [
+    (re.compile(r''), 'text/plain'),
+    (re.compile(r'.html$'), 'text/html'),
+    (re.compile(r'.js$'), 'application/javascript'),
+    (re.compile(r'.json$'), 'application/json'),
+    (re.compile(r'.png$'), 'image/png'),
+    (re.compile(r'.jpg$'), 'image/jpg'),
+    (re.compile(r'.ico$'), 'image/x-icon'),
+    (re.compile(r'.csv$'), 'text/csv')
+]
 
 # Time-zone used by the server
 TIMEZONE = timezone('GMT')
@@ -57,6 +52,33 @@ DATEFMT = '%a, %d %b %Y %H:%M:%S %Z'
 
 # Information about the Server Machine
 SERVER = ' '.join(os.uname())
+
+
+def recv_request(conn):
+    # recieve the request as string
+    req = conn.recv(MAX_REQ).decode('utf-8')
+
+    # print it to the terminal
+    print('\r\n\r\n')
+    print(req)
+
+    # split it
+    req = req.split('\r\n')
+
+    return req
+
+
+def parse_headers(req):
+    method, path, version = req[0].split()
+
+    headers = {}
+    for i in range(1, len(req)):
+        if req[i] == '':
+            break
+        key, value = req[i].split(': ', 1)
+        headers[key] = value
+
+    return method, path, version, headers
 
 
 # Send HTTP response headers and data
@@ -88,7 +110,7 @@ def send_res(conn, status_code, headers, data):
     conn.send(data)
 
 
-def smartphones_handler(conn, addr, method, path, version, req_headers):
+def smartphones_handler(conn, addr, path, version, req_headers):
     """A handler for '/SortName' and '/SortPrice'
     """
     try:
@@ -120,7 +142,7 @@ def smartphones_handler(conn, addr, method, path, version, req_headers):
         return False
 
 
-def absolute_handler(conn, addr, method, path, version, req_headers):
+def root_handler(conn, addr, path, version, req_headers):
     """A handler for '/' returns index.html.
     """
     try:
@@ -147,16 +169,13 @@ def absolute_handler(conn, addr, method, path, version, req_headers):
         return False
 
 
-def default_handler(conn, addr, method, path, version, req_headers):
+def default_handler(conn, addr, path, version, req_headers):
     """A default handler that returns a file 
     if it exists and return 404 page otherwise.
     """
-    # remove the starting '/'
-    path = path[1:]
-
-    extension = path.split('.')[-1]
-
     try:
+        # remove the starting '/'
+        path = path[1:]
         file = open(path, 'rb')
 
         # Set the Headers
@@ -164,10 +183,14 @@ def default_handler(conn, addr, method, path, version, req_headers):
         mod = datetime.fromtimestamp(os.path.getmtime(path), TIMEZONE)
         mod = mod.strftime(DATEFMT)
         res_headers = {
-            'Content-Type': TYPES[extension],
             'Last-Modified': mod,
             'Connection': req_headers['Connection']
         }
+
+        for tp in TYPES:
+            if tp[0].match(path):
+                res_headers['Content-Type'] = tp[1]
+                break
 
         # Set the Data
         data = file.read()
@@ -208,18 +231,14 @@ def default_handler(conn, addr, method, path, version, req_headers):
 
 
 # define list of handlers
-handlers = [
-    (re.compile(r'^/$'), absolute_handler),
-    (re.compile(r'^/Sort'), smartphones_handler),
-    (re.compile(r''), default_handler)
+HANDLERS = [
+    (re.compile(r'^/$'), 'GET', root_handler),
+    (re.compile(r'^/Sort'), 'GET', smartphones_handler),
+    (re.compile(r''), 'GET', default_handler)
 ]
 
 # IPv4
 server_socket = socket(AF_INET, SOCK_STREAM)
-
-# Accept requests on all interfaces ar port 9000
-SRVHOST = "0.0.0.0"
-SRVPORT = 9000
 
 # Allow socket reuse
 server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
@@ -227,8 +246,7 @@ server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 # Bind the address to the socket
 server_socket.bind((SRVHOST, SRVPORT))
 
-# Listening with maximum connections = 10
-QSIZ = 10
+# Listening with maximum connections = QSIZ
 server_socket.listen(QSIZ)
 
 logging.info("Starts Listening at http://%s:%s/", SRVHOST, SRVPORT)
@@ -239,28 +257,15 @@ while True:
     # Read the request
     req = recv_request(client_socket)
 
-    # Extract the method, path and HTTP version of the request
-    method, path, version = req[0].split()
-
-    # Extract the headers
-    headers = {}
-    for i in range(1, len(req)):
-        if req[i] == '':
-            break
-        key, value = req[i].split(': ', 1)
-        headers[key] = value
+    # Extract the method, path, HTTP version and Request Heders
+    method, path, version, headers = parse_headers(req)
 
     logging.info('%s %s from %s', method, path, client_address)
 
-    handled = False
-    for handler in handlers:
-        # If the Request matches the handler
-        if handler[0].match(path):
+    for handler in HANDLERS:
+        if handler[0].match(path) and handler[1] == method:
             # Try to handle it
-            handled = handler[1](client_socket, client_address,
-                                 method, path, version, headers)
-            # If it has been handled stop, otherwise try other handlers
-            if handled:
+            if handler[2](client_socket, client_address, path, version, headers):
                 break
 
     # Close the connection
